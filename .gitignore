@@ -1,0 +1,28 @@
+# Visual Studio / .NET
+.vs/
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build / publish
+AppPackages/
+BundleArtifacts/
+Generated Files/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.cer
+
+# Logs
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
