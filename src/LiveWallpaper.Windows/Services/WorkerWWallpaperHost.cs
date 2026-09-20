@@ -8,7 +8,7 @@ namespace LiveWallpaper.Windows.Services;
 /// <summary>Owns only our attachment; never closes or hides Explorer windows.</summary>
 public sealed class WorkerWWallpaperHost : IDisposable
 {
-    private nint _window, _parent, _originalParent;
+    private nint _window, _parent, _originalParent, _iconView;
     private long _style, _extendedStyle;
 
     public bool IsAttached => _window != 0 && NativeMethods.IsWindow(_window)
@@ -21,13 +21,13 @@ public sealed class WorkerWWallpaperHost : IDisposable
             Resize(bounds);
             return;
         }
-        var parent = FindWorkerW();
+        var (parent, iconView) = FindDesktopTarget();
         if (parent == 0)
             throw new InvalidOperationException("デスクトップの壁紙領域（WorkerW）が見つかりません。Explorerの起動後に再試行してください。");
-        AttachToParent(window, parent, bounds);
+        AttachToParent(window, parent, bounds, iconView);
     }
 
-    internal void AttachToParent(nint window, nint parent, DisplayBounds bounds)
+    internal void AttachToParent(nint window, nint parent, DisplayBounds bounds, nint iconView = default)
     {
         if (_window != 0)
             throw new InvalidOperationException("壁紙は既に配置されています。");
@@ -36,6 +36,7 @@ public sealed class WorkerWWallpaperHost : IDisposable
 
         _window = window;
         _parent = parent;
+        _iconView = iconView;
         _originalParent = NativeMethods.GetParent(window);
         _style = NativeMethods.GetWindowLongPtr(window, NativeMethods.GwlStyle).ToInt64();
         _extendedStyle = NativeMethods.GetWindowLongPtr(window, NativeMethods.GwlExStyle).ToInt64();
@@ -78,7 +79,7 @@ public sealed class WorkerWWallpaperHost : IDisposable
         var error = Marshal.GetLastPInvokeError();
         if (mapped == 0 && error != 0)
             throw new Win32Exception(error, "壁紙の座標変換に失敗しました。");
-        if (!NativeMethods.SetWindowPos(_window, new nint(1) /* HWND_BOTTOM */, point.X, point.Y,
+        if (!NativeMethods.SetWindowPos(_window, _iconView /* below icons, or HWND_TOP within classic WorkerW */, point.X, point.Y,
             bounds.Width, bounds.Height,
             NativeMethods.SwpNoActivate | NativeMethods.SwpFrameChanged | NativeMethods.SwpShowWindow))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "壁紙の位置とサイズを設定できませんでした。");
@@ -104,21 +105,26 @@ public sealed class WorkerWWallpaperHost : IDisposable
             NativeMethods.SetWindowLongPtr(_window, NativeMethods.GwlStyle, new nint(_style));
             NativeMethods.SetWindowLongPtr(_window, NativeMethods.GwlExStyle, new nint(_extendedStyle));
         }
-        _window = _parent = _originalParent = 0;
+        _window = _parent = _originalParent = _iconView = 0;
     }
 
-    private static nint FindWorkerW()
+    private static (nint Parent, nint IconView) FindDesktopTarget()
     {
         var progman = NativeMethods.FindWindow("Progman", null);
         if (progman == 0)
-            return 0;
-        SpawnWorkerW(progman, 0, 0);
+            return default;
+        SpawnWorkerW(progman, 0xD, 1);
+        // Raised desktop: attach beside the wallpaper WorkerW, below icons.
+        var icons = NativeMethods.FindWindowEx(progman, 0, "SHELLDLL_DefView", null);
+        if (icons != 0 && (NativeMethods.GetWindowLongPtr(progman, NativeMethods.GwlExStyle).ToInt64() & 0x00200000L) != 0)
+            return (progman, icons);
         var worker = EnumerateWorkerW(progman);
         if (worker != 0)
-            return worker;
+            return (worker, 0);
+        SpawnWorkerW(progman, 0, 0);
         SpawnWorkerW(progman, 0xD, 0);
         SpawnWorkerW(progman, 0xD, 1);
-        return EnumerateWorkerW(progman);
+        return (EnumerateWorkerW(progman), 0);
     }
 
     private static void SpawnWorkerW(nint progman, nint wParam, nint lParam)

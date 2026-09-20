@@ -14,9 +14,10 @@ internal static class Program
         {
             ClockFormats();
             AttachmentLifecycle();
+            RaisedDesktopLayerOrder();
             FailedAttachmentRollsBack();
             DestroyedParentIsDetected();
-            Console.WriteLine("PASS: clock formats, native attachment/geometry/styles, resize, rollback, cleanup, parent loss");
+            Console.WriteLine("PASS: clock formats, native attachment/geometry/styles, raised-desktop Z-order, resize, rollback, cleanup, parent loss");
             return 0;
         }
         catch (Exception exception)
@@ -110,6 +111,39 @@ internal static class Program
         }
     }
 
+    private static void RaisedDesktopLayerOrder()
+    {
+        var desktop = Create(0, -1080);
+        var background = Create(0, 0);
+        var icons = Create(0, 0);
+        var clock = Create(0, 0);
+        using var host = new WorkerWWallpaperHost();
+        try
+        {
+            foreach (var child in new[] { background, icons })
+            {
+                NativeMethods.SetWindowLongPtr(child, NativeMethods.GwlStyle, new nint(NativeMethods.WsChild));
+                NativeMethods.SetParent(child, desktop);
+                NativeMethods.SetWindowPos(child, 0, 0, 0, 1920, 3240, NativeMethods.SwpNoActivate);
+            }
+            host.AttachToParent(clock, desktop, new DisplayBounds(0, 0, 1920, 1080), icons);
+            Equal(icons, GetWindow(clock, 3 /* GW_HWNDPREV */), "clock directly below icons");
+            Equal(background, GetWindow(clock, 2 /* GW_HWNDNEXT */), "clock above background, not inside it");
+            AssertRect(clock, 0, 0, 1920, 1080);
+            host.Resize(new DisplayBounds(0, 0, 1600, 900));
+            Equal(icons, GetWindow(clock, 3), "resize preserves icon priority");
+            Equal(background, GetWindow(clock, 2), "resize preserves wallpaper priority");
+            host.Dispose();
+            Check(NativeMethods.IsWindow(icons) && NativeMethods.IsWindow(background), "shell layers preserved on stop");
+        }
+        finally
+        {
+            host.Dispose();
+            DestroyWindow(clock);
+            DestroyWindow(desktop);
+        }
+    }
+
     private static void DestroyedParentIsDetected()
     {
         var parent = Create(0, 0);
@@ -159,4 +193,6 @@ internal static class Program
     private static extern bool IsWindowVisible(nint hwnd);
     [DllImport("user32.dll")]
     private static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern nint GetWindow(nint hwnd, uint command);
 }
