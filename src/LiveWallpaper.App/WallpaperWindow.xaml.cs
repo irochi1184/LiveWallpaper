@@ -22,7 +22,7 @@ public sealed partial class WallpaperWindow : Window
         InitializeComponent();
 
         var windowHandle = WindowNative.GetWindowHandle(this);
-        var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
+        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
 
         ConfigureWallpaperWindow();
