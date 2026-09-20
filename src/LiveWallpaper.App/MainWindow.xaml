@@ -14,19 +14,19 @@
                 FontSize="32"
                 FontWeight="SemiBold" />
             <TextBlock
-                Text="最初の技術検証：デスクトップ背景に秒付き時計を表示します。"
+                Text="プライマリ画面に秒付き時計を表示します。この画面を閉じると時計も終了します。"
                 TextWrapping="Wrap"
                 Opacity="0.72" />
             <Button
-                Content="時計をデスクトップに表示"
+                x:Name="ShowWallpaperButton" AutomationProperties.AutomationId="ShowWallpaperButton" Content="時計をデスクトップに表示"
                 Click="ShowWallpaperButton_Click"
                 HorizontalAlignment="Stretch" />
             <Button
-                Content="時計を閉じる"
+                x:Name="CloseWallpaperButton" AutomationProperties.AutomationId="CloseWallpaperButton" IsEnabled="False" Content="時計を閉じる"
                 Click="CloseWallpaperButton_Click"
                 HorizontalAlignment="Stretch" />
             <TextBlock
-                x:Name="StatusText"
+                x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
                 Text="未開始"
                 TextWrapping="Wrap"
                 Opacity="0.72" />

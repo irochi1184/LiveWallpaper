@@ -1,92 +1,152 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
+using LiveWallpaper.Windows.Display;
 using LiveWallpaper.Windows.Interop;
 
 namespace LiveWallpaper.Windows.Services;
 
-/// <summary>
-/// Windows Explorerが生成するWorkerWへ描画用ウィンドウを配置する技術検証。
-/// WorkerWは公開APIではないため、このクラス以外へ依存を広げない。
-/// </summary>
-public sealed class WorkerWWallpaperHost
+/// <summary>Owns only our attachment; never closes or hides Explorer windows.</summary>
+public sealed class WorkerWWallpaperHost : IDisposable
 {
-    public bool TryAttach(nint wallpaperWindowHandle)
+    private nint _window, _parent, _originalParent;
+    private long _style, _extendedStyle;
+
+    public bool IsAttached => _window != 0 && NativeMethods.IsWindow(_window)
+        && NativeMethods.IsWindow(_parent) && NativeMethods.GetParent(_window) == _parent;
+
+    public void Attach(nint window, DisplayBounds bounds)
     {
-        if (wallpaperWindowHandle == nint.Zero)
+        if (IsAttached && window == _window)
         {
-            return false;
+            Resize(bounds);
+            return;
         }
+        var parent = FindWorkerW();
+        if (parent == 0)
+            throw new InvalidOperationException("デスクトップの壁紙領域（WorkerW）が見つかりません。Explorerの起動後に再試行してください。");
+        AttachToParent(window, parent, bounds);
+    }
 
-        var workerW = FindWorkerW();
-        if (workerW == nint.Zero)
+    internal void AttachToParent(nint window, nint parent, DisplayBounds bounds)
+    {
+        if (_window != 0)
+            throw new InvalidOperationException("壁紙は既に配置されています。");
+        if (!NativeMethods.IsWindow(window) || !NativeMethods.IsWindow(parent))
+            throw new ArgumentException("配置先または時計ウィンドウが無効です。");
+
+        _window = window;
+        _parent = parent;
+        _originalParent = NativeMethods.GetParent(window);
+        _style = NativeMethods.GetWindowLongPtr(window, NativeMethods.GwlStyle).ToInt64();
+        _extendedStyle = NativeMethods.GetWindowLongPtr(window, NativeMethods.GwlExStyle).ToInt64();
+        try
         {
-            return false;
+            NativeMethods.ShowWindow(window, 0);
+            SetStyle(NativeMethods.GwlStyle,
+                (_style & ~(NativeMethods.WsPopup | NativeMethods.WsCaption | NativeMethods.WsThickFrame)) | NativeMethods.WsChild);
+            SetStyle(NativeMethods.GwlExStyle,
+                (_extendedStyle & ~NativeMethods.WsExAppWindow) | NativeMethods.WsExToolWindow | NativeMethods.WsExNoActivate);
+            Marshal.SetLastPInvokeError(0);
+            var previous = NativeMethods.SetParent(window, parent);
+            var error = Marshal.GetLastPInvokeError();
+            // NULL is also a valid previous parent for top-level windows.
+            if (previous == 0 && error != 0)
+                throw new Win32Exception(error, "デスクトップへの配置に失敗しました。");
+            if (!IsAttached)
+                throw new InvalidOperationException("配置中にデスクトップの構成が変わりました。再試行してください。");
+            Resize(bounds);
         }
+        catch
+        {
+            Dispose();
+            throw;
+        }
+    }
 
+    public void Resize(DisplayBounds bounds)
+    {
+        if (!IsAttached)
+            throw new InvalidOperationException("デスクトップとの接続が失われました。時計を再表示してください。");
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(bounds));
+
+        // Child positions are relative to the parent client area. WorkerW can
+        // start at a negative virtual-screen origin on multi-monitor systems.
+        var point = new NativeMethods.Point { X = bounds.X, Y = bounds.Y };
         Marshal.SetLastPInvokeError(0);
-        _ = NativeMethods.SetParent(wallpaperWindowHandle, workerW);
+        var mapped = NativeMethods.MapWindowPoints(0, _parent, ref point, 1);
+        var error = Marshal.GetLastPInvokeError();
+        if (mapped == 0 && error != 0)
+            throw new Win32Exception(error, "壁紙の座標変換に失敗しました。");
+        if (!NativeMethods.SetWindowPos(_window, new nint(1) /* HWND_BOTTOM */, point.X, point.Y,
+            bounds.Width, bounds.Height,
+            NativeMethods.SwpNoActivate | NativeMethods.SwpFrameChanged | NativeMethods.SwpShowWindow))
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "壁紙の位置とサイズを設定できませんでした。");
+    }
 
-        return Marshal.GetLastPInvokeError() == 0;
+    private void SetStyle(int index, long value)
+    {
+        Marshal.SetLastPInvokeError(0);
+        var previous = NativeMethods.SetWindowLongPtr(_window, index, new nint(value));
+        var error = Marshal.GetLastPInvokeError();
+        if (previous == 0 && error != 0)
+            throw new Win32Exception(error, "壁紙ウィンドウの属性を設定できませんでした。");
+    }
+
+    public void Dispose()
+    {
+        if (_window != 0 && NativeMethods.IsWindow(_window))
+        {
+            NativeMethods.ShowWindow(_window, 0);
+            // Restore while hidden before WinUI closes its top-level window.
+            // Explorer may already have destroyed the child during a restart.
+            NativeMethods.SetParent(_window, NativeMethods.IsWindow(_originalParent) ? _originalParent : 0);
+            NativeMethods.SetWindowLongPtr(_window, NativeMethods.GwlStyle, new nint(_style));
+            NativeMethods.SetWindowLongPtr(_window, NativeMethods.GwlExStyle, new nint(_extendedStyle));
+        }
+        _window = _parent = _originalParent = 0;
     }
 
     private static nint FindWorkerW()
     {
         var progman = NativeMethods.FindWindow("Progman", null);
-        if (progman == nint.Zero)
-        {
-            return nint.Zero;
-        }
-
-        SpawnWorkerW(progman, nint.Zero, nint.Zero);
-
-        var workerW = EnumerateWorkerW();
-        if (workerW != nint.Zero)
-        {
-            return workerW;
-        }
-
-        // Windowsの更新でExplorer側の生成方法が変わる場合に備えた代替呼び出し。
-        SpawnWorkerW(progman, new nint(0xD), new nint(0x1));
-        return EnumerateWorkerW();
+        if (progman == 0)
+            return 0;
+        SpawnWorkerW(progman, 0, 0);
+        var worker = EnumerateWorkerW(progman);
+        if (worker != 0)
+            return worker;
+        SpawnWorkerW(progman, 0xD, 0);
+        SpawnWorkerW(progman, 0xD, 1);
+        return EnumerateWorkerW(progman);
     }
 
     private static void SpawnWorkerW(nint progman, nint wParam, nint lParam)
-    {
-        _ = NativeMethods.SendMessageTimeout(
-            progman,
-            NativeMethods.SpawnWorkerWMessage,
-            wParam,
-            lParam,
-            NativeMethods.SmtoNormal,
-            1000,
-            out _);
-    }
+        => NativeMethods.SendMessageTimeout(progman, 0x052C, wParam, lParam,
+            0x0002 /* SMTO_ABORTIFHUNG */, 1000, out _);
 
-    private static nint EnumerateWorkerW()
+    private static nint EnumerateWorkerW(nint progman)
     {
-        nint workerW = nint.Zero;
-
-        _ = NativeMethods.EnumWindows((topLevelWindow, _) =>
+        nint worker = 0;
+        NativeMethods.EnumWindows((topLevel, _) =>
         {
-            var shellView = NativeMethods.FindWindowEx(
-                topLevelWindow,
-                nint.Zero,
-                "SHELLDLL_DefView",
-                null);
-
-            if (shellView == nint.Zero)
-            {
+            if (NativeMethods.FindWindowEx(topLevel, 0, "SHELLDLL_DefView", null) == 0)
                 return true;
-            }
-
-            workerW = NativeMethods.FindWindowEx(
-                nint.Zero,
-                topLevelWindow,
-                "WorkerW",
-                null);
-
-            return workerW == nint.Zero;
-        }, nint.Zero);
-
-        return workerW;
+            // Classic layout: the next WorkerW is behind the desktop icon host.
+            var candidate = NativeMethods.FindWindowEx(0, topLevel, "WorkerW", null);
+            if (candidate != 0 && NativeMethods.FindWindowEx(candidate, 0, "SHELLDLL_DefView", null) == 0)
+                worker = candidate;
+            return worker == 0;
+        }, 0);
+        if (worker != 0)
+            return worker;
+        // New Explorer layout: WorkerW and the icon view are siblings in Progman.
+        if (NativeMethods.FindWindowEx(progman, 0, "SHELLDLL_DefView", null) != 0)
+        {
+            var candidate = NativeMethods.FindWindowEx(progman, 0, "WorkerW", null);
+            if (candidate != 0 && NativeMethods.FindWindowEx(candidate, 0, "SHELLDLL_DefView", null) == 0)
+                return candidate;
+        }
+        return 0;
     }
 }
