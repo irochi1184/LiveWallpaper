@@ -5,7 +5,7 @@
 
     <Grid Background="#101014">
         <TextBlock
-            x:Name="ClockText"
+            x:Name="ClockText" AutomationProperties.AutomationId="ClockText"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             FontFamily="Segoe UI Variable Display"

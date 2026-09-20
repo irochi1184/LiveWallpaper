@@ -6,7 +6,7 @@
 - [x] WinUI 3の基本構成
 - [x] 秒表示時計の基本実装
 - [x] WorkerW配置処理の隔離
-- [ ] Windows 11実機でWorkerW配置を確認
+- [x] Windows 11実機で時計表示・秒更新を確認（raised desktop対応）
 - [ ] Explorer再起動時の挙動を確認
 
 ## Phase 1: 最小製品版
