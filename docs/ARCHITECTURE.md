@@ -67,3 +67,7 @@ WorkerWWallpaperHostはWS_POPUPを外してWS_CHILDを設定し、SetParentの�
 停止時はタイマーを停止し、時計を隠して元の親・属性へ戻した後にWinUI Window.Closeを呼ぶ。操作画面のClosedも同じ停止処理を通る。失敗時も配置をロールバックする。親の消失は毎秒検出し、手動での再表示を案内する。
 
 参考: [SetParentの属性・DPI要件](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setparent)、[AppWindow.Show(Boolean)](https://learn.microsoft.com/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.windowing.appwindow.show)。
+
+## 時計設定と永続化
+
+ClockSettingsは検証済みコピーとしてUIへ渡す。ClockViewは設定画面と壁紙の共通描画部品で、位置、文字色、サイズ、不透明度、時刻書式を受け取る。MainWindowは設定変更のたびに両方へ反映し、400msの待ち時間を置いてClockSettingsStoreへ保存する。通常終了時は保存待ちの変更を同期的に書き込む。形式とエラー処理は [CLOCK_SETTINGS.md](CLOCK_SETTINGS.md) に記載する。

@@ -1,35 +1,121 @@
 <Window
     x:Class="LiveWallpaper.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LiveWallpaper.App.Controls">
 
-    <Grid Padding="32">
-        <StackPanel
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Spacing="16"
-            MaxWidth="520">
-            <TextBlock
-                Text="LiveWallpaper"
-                FontSize="32"
-                FontWeight="SemiBold" />
-            <TextBlock
-                Text="プライマリ画面に秒付き時計を表示します。この画面を閉じると時計も終了します。"
-                TextWrapping="Wrap"
-                Opacity="0.72" />
-            <Button
-                x:Name="ShowWallpaperButton" AutomationProperties.AutomationId="ShowWallpaperButton" Content="時計をデスクトップに表示"
-                Click="ShowWallpaperButton_Click"
-                HorizontalAlignment="Stretch" />
-            <Button
-                x:Name="CloseWallpaperButton" AutomationProperties.AutomationId="CloseWallpaperButton" IsEnabled="False" Content="時計を閉じる"
-                Click="CloseWallpaperButton_Click"
-                HorizontalAlignment="Stretch" />
-            <TextBlock
-                x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
-                Text="未開始"
-                TextWrapping="Wrap"
-                Opacity="0.72" />
+    <Grid Padding="28" RowSpacing="20" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Spacing="12">
+            <TextBlock Text="デスクトップ時計" FontSize="28" FontWeight="SemiBold" />
+            <TextBlock Text="見た目と配置を調整できます。変更は時計へすぐに反映され、自動保存されます。"
+                       TextWrapping="Wrap" Opacity="0.72" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button x:Name="ShowWallpaperButton" AutomationProperties.AutomationId="ShowWallpaperButton"
+                        Content="時計をデスクトップに表示" Click="ShowWallpaperButton_Click"
+                        Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Name="CloseWallpaperButton" AutomationProperties.AutomationId="CloseWallpaperButton"
+                        Content="時計を閉じる" IsEnabled="False" Click="CloseWallpaperButton_Click" />
+            </StackPanel>
+            <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
+                       Text="時計は停止中です。この画面を閉じると、デスクトップの時計も終了します。"
+                       TextWrapping="Wrap" Opacity="0.72" />
         </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="24" Margin="0,0,12,16">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="配置プレビュー" FontWeight="SemiBold" />
+                    <Border Background="#101014" CornerRadius="12">
+                        <Viewbox MaxHeight="220" Stretch="Uniform">
+                            <controls:ClockView x:Name="ClockPreview" Width="1280" Height="720" />
+                        </Viewbox>
+                    </Border>
+                </StackPanel>
+                <Grid ColumnSpacing="32">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ToggleSwitch x:Name="SecondsSwitch" Header="秒を表示" OnContent="表示する" OffContent="表示しない"
+                                  AutomationProperties.AutomationId="ShowSeconds" Toggled="SettingToggle_Toggled" />
+                    <ToggleSwitch Grid.Column="1" x:Name="HourFormatSwitch" Header="24時間表示"
+                                  OnContent="18:42" OffContent="06:42 PM"
+                                  AutomationProperties.AutomationId="Use24HourClock" Toggled="SettingToggle_Toggled" />
+                </Grid>
+                <Grid ColumnSpacing="32">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Name="FontSizeLabel" Text="文字サイズ" />
+                        <Slider x:Name="FontSizeSlider" Minimum="24" Maximum="240" StepFrequency="1"
+                                AutomationProperties.Name="文字サイズ" AutomationProperties.AutomationId="FontSize"
+                                ValueChanged="SettingSlider_ValueChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock x:Name="OpacityLabel" Text="不透明度" />
+                        <Slider x:Name="OpacitySlider" Minimum="10" Maximum="100" StepFrequency="1"
+                                AutomationProperties.Name="不透明度" AutomationProperties.AutomationId="Opacity"
+                                ValueChanged="SettingSlider_ValueChanged" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Spacing="8">
+                    <TextBlock Text="文字色" />
+                    <DropDownButton AutomationProperties.Name="文字色を選択">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border x:Name="ColorSwatch" Width="20" Height="20" CornerRadius="4"
+                                    BorderBrush="Gray" BorderThickness="1" />
+                            <TextBlock x:Name="ColorLabel" Text="#FFFFFF" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <Flyout>
+                                <ColorPicker x:Name="ClockColorPicker" IsAlphaEnabled="False"
+                                             IsMoreButtonVisible="False" ColorChanged="ClockColorPicker_ColorChanged"
+                                             AutomationProperties.AutomationId="ClockColor" />
+                            </Flyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </StackPanel>
+                <Grid ColumnSpacing="32">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="PositionBox" Header="表示位置" HorizontalAlignment="Stretch"
+                              AutomationProperties.AutomationId="ClockPosition" SelectionChanged="PositionBox_SelectionChanged">
+                        <ComboBoxItem Content="中央" />
+                        <ComboBoxItem Content="左上" />
+                        <ComboBoxItem Content="右上" />
+                        <ComboBoxItem Content="左下" />
+                        <ComboBoxItem Content="右下" />
+                    </ComboBox>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock x:Name="MarginLabel" Text="画面端からの余白" />
+                        <Slider x:Name="MarginSlider" Minimum="0" Maximum="256" StepFrequency="1"
+                                AutomationProperties.Name="画面端からの余白" AutomationProperties.AutomationId="ClockMargin"
+                                ValueChanged="SettingSlider_ValueChanged" />
+                        <TextBlock Text="四隅に配置したときに反映されます。" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+                <Button Content="初期設定に戻す" Click="ResetSettingsButton_Click" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SaveStatusText" TextWrapping="Wrap" VerticalAlignment="Center"
+                       AutomationProperties.AutomationId="SaveStatus" Opacity="0.72" />
+            <Button Grid.Column="1" x:Name="RetrySaveButton" Content="保存を再試行"
+                    Visibility="Collapsed" Click="RetrySaveButton_Click" />
+        </Grid>
     </Grid>
 </Window>
