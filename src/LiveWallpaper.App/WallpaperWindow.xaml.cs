@@ -1,4 +1,3 @@
-using System.Globalization;
 using LiveWallpaper.Core.Models;
 using LiveWallpaper.Windows.Display;
 using LiveWallpaper.Windows.Services;
@@ -11,18 +10,18 @@ namespace LiveWallpaper.App;
 
 public sealed partial class WallpaperWindow : Window
 {
-    private readonly ClockSettings _clockSettings = new();
+
     private readonly WorkerWWallpaperHost _wallpaperHost = new();
     private readonly DispatcherQueueTimer _clockTimer;
     private readonly AppWindow _appWindow;
-    private string _lastDisplayedTime = string.Empty;
+
     private DisplayBounds _bounds;
     private bool _closed;
     private int _ticks;
 
     public event EventHandler<string>? DesktopConnectionLost;
 
-    public WallpaperWindow()
+    public WallpaperWindow(ClockSettings settings)
     {
         InitializeComponent();
         Title = "LiveWallpaper Clock";
@@ -41,11 +40,10 @@ public sealed partial class WallpaperWindow : Window
         _clockTimer.Interval = TimeSpan.FromMilliseconds(250);
         _clockTimer.Tick += ClockTimer_Tick;
         Closed += WallpaperWindow_Closed;
-        ClockText.FontSize = _clockSettings.FontSize;
-        ClockText.Opacity = _clockSettings.Opacity;
-        ClockText.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(_clockSettings.FontFamily);
-        UpdateClock();
+        ApplySettings(settings);
     }
+
+    public void ApplySettings(ClockSettings settings) => Clock.ApplySettings(settings);
 
     public void ShowOnDesktop()
     {
@@ -89,16 +87,7 @@ public sealed partial class WallpaperWindow : Window
         }
     }
 
-    private void UpdateClock()
-    {
-        // Read OS time, never accumulate timer ticks. InvariantCulture keeps
-        // literal HH:mm:ss separators even under a different Windows locale.
-        var text = DateTime.Now.ToString(_clockSettings.GetTimeFormat(), CultureInfo.InvariantCulture);
-        if (text == _lastDisplayedTime)
-            return;
-        _lastDisplayedTime = text;
-        ClockText.Text = text;
-    }
+    private void UpdateClock() => Clock.UpdateTime();
 
     private void WallpaperWindow_Closed(object sender, WindowEventArgs args)
     {

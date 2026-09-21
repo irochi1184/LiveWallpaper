@@ -13,6 +13,7 @@ internal static class Program
         try
         {
             ClockFormats();
+            SettingsTests.Run();
             AttachmentLifecycle();
             RaisedDesktopLayerOrder();
             FailedAttachmentRollsBack();

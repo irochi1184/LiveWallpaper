@@ -1,0 +1,12 @@
+<UserControl
+    x:Class="LiveWallpaper.App.Controls.ClockView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid x:Name="ClockRoot" Background="#101014" SizeChanged="ClockRoot_SizeChanged">
+        <Viewbox x:Name="ClockContainer" Stretch="Uniform" StretchDirection="DownOnly"
+                 HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock x:Name="ClockText" AutomationProperties.AutomationId="ClockText"
+                       FontWeight="Light" Foreground="White" Text="00:00:00" />
+        </Viewbox>
+    </Grid>
+</UserControl>
