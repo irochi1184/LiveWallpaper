@@ -32,9 +32,36 @@
                     <TextBlock Text="配置プレビュー" FontWeight="SemiBold" />
                     <Border Background="#101014" CornerRadius="12">
                         <Viewbox MaxHeight="220" Stretch="Uniform">
-                            <controls:ClockView x:Name="ClockPreview" Width="1280" Height="720" />
+                            <controls:WallpaperSurface x:Name="ClockPreview" Width="1280" Height="720" />
                         </Viewbox>
                     </Border>
+                </StackPanel>
+                <StackPanel Spacing="12">
+                    <TextBlock Text="背景" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="ChooseImageButton" Content="画像を選ぶ" Click="ChooseImageButton_Click"
+                                AutomationProperties.AutomationId="ChooseImage" />
+                        <Button x:Name="ClearImageButton" Content="画像を外す" Click="ClearImageButton_Click"
+                                AutomationProperties.AutomationId="ClearImage" />
+                    </StackPanel>
+                    <TextBlock x:Name="ImageNameText" Text="画像なし" TextWrapping="Wrap" />
+                    <TextBlock x:Name="BackgroundStatusText" Text="PNG・JPEG画像を選択できます。"
+                               TextWrapping="Wrap" Opacity="0.72" />
+                    <ComboBox x:Name="BackgroundFitBox" Header="画像の表示方法" HorizontalAlignment="Stretch"
+                              SelectionChanged="BackgroundFitBox_SelectionChanged">
+                        <ComboBoxItem Content="全面に広げる（はみ出す部分を切り抜く）" />
+                        <ComboBoxItem Content="画像全体を表示（余白あり）" />
+                        <ComboBoxItem Content="画面いっぱいに引き伸ばす" />
+                    </ComboBox>
+                    <DropDownButton AutomationProperties.Name="背景色を選択">
+                        <TextBlock x:Name="BackgroundColorLabel" Text="背景色：#101014" />
+                        <DropDownButton.Flyout>
+                            <Flyout>
+                                <ColorPicker x:Name="BackgroundColorPicker" IsAlphaEnabled="False"
+                                             IsMoreButtonVisible="False" ColorChanged="BackgroundColorPicker_ColorChanged" />
+                            </Flyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
                 </StackPanel>
                 <Grid ColumnSpacing="32">
                     <Grid.ColumnDefinitions>
@@ -103,7 +130,7 @@
                         <TextBlock Text="四隅に配置したときに反映されます。" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
-                <Button Content="初期設定に戻す" Click="ResetSettingsButton_Click" />
+                <Button Content="時計を初期設定に戻す" Click="ResetSettingsButton_Click" />
             </StackPanel>
         </ScrollViewer>
 

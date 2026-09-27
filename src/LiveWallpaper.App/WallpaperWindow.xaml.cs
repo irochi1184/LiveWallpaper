@@ -45,6 +45,9 @@ public sealed partial class WallpaperWindow : Window
 
     public void ApplySettings(ClockSettings settings) => Clock.ApplySettings(settings);
 
+    public void ApplyBackground(WallpaperSettings settings, Microsoft.UI.Xaml.Media.Imaging.BitmapImage? image)
+        => Clock.ApplyBackground(settings, image);
+
     public void ShowOnDesktop()
     {
         _bounds = PrimaryDisplayMetrics.GetBounds();

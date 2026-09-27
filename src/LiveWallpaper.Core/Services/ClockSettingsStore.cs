@@ -4,7 +4,10 @@ using LiveWallpaper.Core.Models;
 
 namespace LiveWallpaper.Core.Services;
 
-public sealed record SettingsLoadResult(ClockSettings Settings, string? Warning = null);
+public sealed record SettingsLoadResult(ClockSettings Settings, string? Warning = null)
+{
+    public WallpaperSettings Wallpaper { get; init; } = new();
+}
 
 /// <summary>Small, versioned settings file. Writes replace the file only after serialization succeeds.</summary>
 public sealed class ClockSettingsStore
@@ -13,7 +16,7 @@ public sealed class ClockSettingsStore
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter<ClockPosition>() }
+        Converters = { new JsonStringEnumConverter<ClockPosition>(), new JsonStringEnumConverter<WallpaperFit>() }
     };
 
     public string FilePath { get; }
@@ -35,7 +38,9 @@ public sealed class ClockSettingsStore
             if (document.Version != 1 || document.Clock is null)
                 throw new JsonException("Unsupported settings document.");
             var normalized = document.Clock.NormalizedCopy();
-            return new(normalized, normalized == document.Clock ? null : "設定の範囲外の値を補正しました。");
+            var wallpaper = (document.Wallpaper ?? new()).NormalizedCopy();
+            return new(normalized, normalized == document.Clock && wallpaper == (document.Wallpaper ?? new())
+                ? null : "設定の範囲外の値を補正しました。") { Wallpaper = wallpaper };
         }
         catch (FileNotFoundException) { return new(new ClockSettings()); }
         catch (DirectoryNotFoundException) { return new(new ClockSettings()); }
@@ -47,9 +52,13 @@ public sealed class ClockSettingsStore
         }
     }
 
-    public void Save(ClockSettings settings)
+    public void Save(ClockSettings settings, WallpaperSettings? wallpaper = null)
     {
-        var json = JsonSerializer.Serialize(new SettingsDocument { Clock = settings.NormalizedCopy() }, JsonOptions);
+        var json = JsonSerializer.Serialize(new SettingsDocument
+        {
+            Clock = settings.NormalizedCopy(),
+            Wallpaper = (wallpaper ?? new()).NormalizedCopy()
+        }, JsonOptions);
         var directory = Path.GetDirectoryName(FilePath)!;
         Directory.CreateDirectory(directory);
         var temporaryFile = Path.Combine(directory, $".settings-{Guid.NewGuid():N}.tmp");
@@ -75,5 +84,6 @@ public sealed class ClockSettingsStore
         public SettingsDocument() { }
         public int Version { get; set; } = 1;
         public ClockSettings? Clock { get; set; } = new();
+        public WallpaperSettings? Wallpaper { get; set; } = new();
     }
 }

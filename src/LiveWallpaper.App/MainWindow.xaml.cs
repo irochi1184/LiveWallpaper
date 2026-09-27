@@ -5,6 +5,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using LiveWallpaper.App.Services;
 
 namespace LiveWallpaper.App;
 
@@ -14,6 +16,9 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueueTimer _saveTimer;
     private readonly DispatcherQueueTimer _previewTimer;
     private ClockSettings _settings = new();
+    private WallpaperSettings _background = new();
+    private BitmapImage? _backgroundImage;
+    private bool _backgroundBusy;
     private WallpaperWindow? _wallpaperWindow;
     private bool _ready;
     private bool _updatingControls;
@@ -34,11 +39,13 @@ public sealed partial class MainWindow : Window
         _previewTimer.Tick += PreviewTimer_Tick;
         var loaded = _settingsStore.Load();
         _settings = loaded.Settings;
+        _background = loaded.Wallpaper;
         PopulateControls();
         SaveStatusText.Text = loaded.Warning ?? "設定は自動保存され、次回起動時に復元されます。";
         _ready = true;
         _previewTimer.Start();
         Closed += MainWindow_Closed;
+        ((FrameworkElement)Content).Loaded += MainContent_Loaded;
     }
 
     private void PopulateControls()
@@ -53,6 +60,8 @@ public sealed partial class MainWindow : Window
             ClockColorPicker.Color = Controls.ClockView.ParseColor(_settings.ColorRgb);
             PositionBox.SelectedIndex = (int)_settings.Position;
             MarginSlider.Value = _settings.Margin;
+            BackgroundFitBox.SelectedIndex = (int)_background.Fit;
+            BackgroundColorPicker.Color = Controls.ClockView.ParseColor(_background.BackgroundColor);
         }
         finally { _updatingControls = false; }
         UpdateAppearance();
@@ -87,6 +96,7 @@ public sealed partial class MainWindow : Window
         ColorSwatch.Background = new SolidColorBrush(Controls.ClockView.ParseColor(_settings.ColorRgb));
         ClockPreview.ApplySettings(_settings);
         _wallpaperWindow?.ApplySettings(_settings);
+        UpdateBackground();
     }
 
     private void ScheduleSave()
@@ -104,7 +114,7 @@ public sealed partial class MainWindow : Window
             return;
         try
         {
-            _settingsStore.Save(_settings);
+            _settingsStore.Save(_settings, _background);
             _dirty = false;
             if (!_closing)
             {
@@ -145,6 +155,7 @@ public sealed partial class MainWindow : Window
         try
         {
             _wallpaperWindow = new WallpaperWindow(_settings);
+            _wallpaperWindow.ApplyBackground(_background, _backgroundImage);
             _wallpaperWindow.Closed += WallpaperWindow_Closed;
             _wallpaperWindow.DesktopConnectionLost += WallpaperWindow_DesktopConnectionLost;
             _wallpaperWindow.ShowOnDesktop();
@@ -211,5 +222,102 @@ public sealed partial class MainWindow : Window
         // Flush a slider change even if the user closes within the debounce interval.
         SaveSettings();
         CloseWallpaper();
+        _backgroundImage = null;
     }
+
+    private async void MainContent_Loaded(object sender, RoutedEventArgs e)
+    {
+        ((FrameworkElement)sender).Loaded -= MainContent_Loaded;
+        if (_background.ImagePath is not { } path || _closing) return;
+        SetBackgroundBusy(true);
+        try { await LoadBackgroundAsync(path, persist: false); }
+        finally { if (!_closing) SetBackgroundBusy(false); }
+    }
+
+    private void UpdateBackground()
+    {
+        ClockPreview.ApplyBackground(_background, _backgroundImage);
+        _wallpaperWindow?.ApplyBackground(_background, _backgroundImage);
+        ImageNameText.Text = _background.ImagePath is { } path ? Path.GetFileName(path) : "画像なし";
+        BackgroundColorLabel.Text = $"背景色：{_background.BackgroundColor}";
+        BackgroundFitBox.IsEnabled = _backgroundImage != null;
+        ClearImageButton.IsEnabled = !_backgroundBusy && _background.ImagePath != null;
+    }
+
+    private void SetBackgroundBusy(bool busy)
+    {
+        _backgroundBusy = busy;
+        ChooseImageButton.IsEnabled = !busy;
+        ClearImageButton.IsEnabled = !busy && _background.ImagePath != null;
+    }
+
+    private async void ChooseImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_backgroundBusy || _closing) return;
+        SetBackgroundBusy(true);
+        try
+        {
+            var picker = new global::Windows.Storage.Pickers.FileOpenPicker();
+            picker.FileTypeFilter.Add(".png");
+            picker.FileTypeFilter.Add(".jpg");
+            picker.FileTypeFilter.Add(".jpeg");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSingleFileAsync();
+            if (file != null && !_closing) await LoadBackgroundAsync(file.Path, persist: true);
+        }
+        catch (Exception)
+        {
+            if (!_closing) BackgroundStatusText.Text = "画像の選択を開けませんでした。もう一度お試しください。";
+        }
+        finally { if (!_closing) SetBackgroundBusy(false); }
+    }
+
+    private async Task LoadBackgroundAsync(string path, bool persist)
+    {
+        BackgroundStatusText.Text = "画像を読み込んでいます…";
+        try
+        {
+            var image = await WallpaperImageLoader.LoadAsync(path);
+            if (_closing) return;
+            // Commit only after decoding. Invalid files leave the current image
+            // and saved selection intact. Fit/color edits made while loading survive.
+            _backgroundImage = image;
+            _background = _background with { ImagePath = path };
+            UpdateBackground();
+            BackgroundStatusText.Text = "画像を表示しています。画像を移動・削除すると次回読み込めなくなります。";
+            if (persist) ScheduleSave();
+        }
+        catch (Exception)
+        {
+            if (!_closing) BackgroundStatusText.Text = persist
+                ? "画像を読み込めませんでした。現在の背景を維持しています。別のPNG・JPEG画像を選んでください。"
+                : "保存された画像を読み込めませんでした。背景色で表示します。画像を選び直してください。";
+        }
+    }
+
+    private void ClearImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_backgroundBusy || _closing) return;
+        _background = _background with { ImagePath = null };
+        _backgroundImage = null;
+        UpdateBackground();
+        BackgroundStatusText.Text = "画像を外し、背景色で表示しています。";
+        ScheduleSave();
+    }
+
+    private void ApplyBackgroundControls()
+    {
+        if (!_ready || _updatingControls || _closing) return;
+        var color = BackgroundColorPicker.Color;
+        _background = (_background with
+        {
+            Fit = (WallpaperFit)BackgroundFitBox.SelectedIndex,
+            BackgroundColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}"
+        }).NormalizedCopy();
+        UpdateBackground();
+        ScheduleSave();
+    }
+
+    private void BackgroundFitBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyBackgroundControls();
+    private void BackgroundColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs e) => ApplyBackgroundControls();
 }

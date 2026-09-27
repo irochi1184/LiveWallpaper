@@ -13,6 +13,7 @@ internal static class SettingsTests
             DamagedFileRecovery(root);
             NormalizeUnsafeValues();
             SaveFailurePreservesSettings(root);
+            WallpaperRoundTrip(root);
             Console.WriteLine("PASS: settings defaults, restart round-trip, backup, partial/invalid JSON, normalization, failed atomic save");
         }
         finally
@@ -91,6 +92,36 @@ internal static class SettingsTests
         Equal(0.1, (new ClockSettings { Opacity = 0 }).NormalizedCopy().Opacity, "clock remains visible");
         Equal(240d, (new ClockSettings { FontSize = 10000 }).NormalizedCopy().FontSize, "font upper bound");
         Equal(0d, (new ClockSettings { Margin = -1 }).NormalizedCopy().Margin, "margin lower bound");
+    }
+
+    private static void WallpaperRoundTrip(string root)
+    {
+        var path = Path.Combine(root, "wallpaper-settings.json");
+        var store = new ClockSettingsStore(path);
+        var clock = new ClockSettings { FontSize = 132, ColorRgb = "#22AACC" };
+        store.Save(clock);
+        Equal(new WallpaperSettings(), store.Load().Wallpaper, "old clock-only settings have a default background");
+        File.WriteAllText(path, """{"version":1,"clock":{"fontSize":132}}""");
+        Equal(132d, store.Load().Settings.FontSize, "legacy clock value retained");
+        Equal(new WallpaperSettings(), store.Load().Wallpaper, "version 1 without wallpaper migrates additively");
+
+        // Missing source files remain selected so the UI can explain the error
+        // and allow re-selection; loading settings does not silently erase them.
+        var imagePath = Path.Combine(root, "image with spaces 日本語.png");
+        var background = new WallpaperSettings { ImagePath = imagePath, Fit = WallpaperFit.Fit, BackgroundColor = "#123456" };
+        store.Save(clock, background);
+        var restarted = new ClockSettingsStore(path).Load();
+        Equal(clock, restarted.Settings, "image settings do not replace clock settings");
+        Equal(background, restarted.Wallpaper, "image path, fit and color survive restart");
+        Check(!File.Exists(imagePath), "test does not require an existing image");
+        store.Save(clock, background with { ImagePath = null });
+        Equal(null, store.Load().Wallpaper.ImagePath, "clear image survives restart");
+        Equal(background, new ClockSettingsStore(path + ".bak").Load().Wallpaper, "image settings included in backup");
+
+        var invalid = new WallpaperSettings { ImagePath = "relative.png", Fit = (WallpaperFit)99, BackgroundColor = "bad" };
+        Equal(new WallpaperSettings(), invalid.NormalizedCopy(), "invalid background inputs normalized");
+        Equal("#ABCDEF", (new WallpaperSettings { BackgroundColor = "#abcdef" }).NormalizedCopy().BackgroundColor,
+            "canonical background color");
     }
 
     private static void SaveFailurePreservesSettings(string root)
