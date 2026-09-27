@@ -8,7 +8,7 @@ namespace LiveWallpaper.App;
 
 public partial class App : Application
 {
-    public static Window? MainWindow { get; private set; }
+    public static MainWindow? MainWindow { get; private set; }
     private AppInstance? _instance;
     private DispatcherQueue? _dispatcher;
 
@@ -52,10 +52,7 @@ public partial class App : Application
     private void Instance_Activated(object? sender, AppActivationArguments args)
         => _dispatcher?.TryEnqueue(() =>
         {
-            if (MainWindow is not { } window) return;
-            if (window.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
-                presenter.Restore();
-            window.Activate();
+            MainWindow?.ShowSettings();
         });
 
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]

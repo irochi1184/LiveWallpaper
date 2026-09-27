@@ -22,7 +22,9 @@
                         Content="時計を閉じる" IsEnabled="False" Click="CloseWallpaperButton_Click" />
             </StackPanel>
             <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
-                       Text="時計は停止中です。この画面を閉じると、デスクトップの時計も終了します。"
+                       Text="時計は停止中です。"
+                       TextWrapping="Wrap" Opacity="0.72" />
+            <TextBlock x:Name="TrayStatusText" Text="×で設定画面を閉じても壁紙は続きます。トレイのアイコン、またはアプリの再起動で設定を開けます。"
                        TextWrapping="Wrap" Opacity="0.72" />
         </StackPanel>
 
@@ -138,11 +140,14 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="SaveStatusText" TextWrapping="Wrap" VerticalAlignment="Center"
                        AutomationProperties.AutomationId="SaveStatus" Opacity="0.72" />
             <Button Grid.Column="1" x:Name="RetrySaveButton" Content="保存を再試行"
                     Visibility="Collapsed" Click="RetrySaveButton_Click" />
+            <Button Grid.Column="2" Content="アプリを終了" AutomationProperties.AutomationId="ExitApplication"
+                    Click="ExitApplicationButton_Click" />
         </Grid>
     </Grid>
 </Window>

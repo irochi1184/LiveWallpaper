@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using LiveWallpaper.App.Services;
+using LiveWallpaper.Windows.Services;
+using Microsoft.UI.Windowing;
 
 namespace LiveWallpaper.App;
 
@@ -24,6 +26,8 @@ public sealed partial class MainWindow : Window
     private bool _updatingControls;
     private bool _dirty;
     private bool _closing;
+    private bool _exitRequested;
+    private TrayIcon? _trayIcon;
 
     public MainWindow()
     {
@@ -45,8 +49,63 @@ public sealed partial class MainWindow : Window
         _ready = true;
         _previewTimer.Start();
         Closed += MainWindow_Closed;
+        AppWindow.Closing += AppWindow_Closing;
+        InitializeTray();
         ((FrameworkElement)Content).Loaded += MainContent_Loaded;
     }
+
+    private void InitializeTray()
+    {
+        try
+        {
+            _trayIcon = new TrayIcon(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            _trayIcon.ShowRequested += () => DispatcherQueue.TryEnqueue(ShowSettings);
+            _trayIcon.ExitRequested += () => DispatcherQueue.TryEnqueue(ExitApplication);
+            _trayIcon.Unavailable += () => DispatcherQueue.TryEnqueue(() =>
+            {
+                ShowSettings();
+                TrayStatusText.Text = "トレイに表示できません。画面を閉じるとアプリも終了します。";
+            });
+            _trayIcon.SessionEnding += () => _exitRequested = true;
+        }
+        catch (Exception)
+        {
+            TrayStatusText.Text = "トレイに表示できません。画面を閉じるとアプリも終了します。";
+        }
+    }
+
+    public void ShowSettings()
+    {
+        if (_closing) return;
+        AppWindow.Show();
+        if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
+            presenter.Restore();
+        Activate();
+        ClockPreview.UpdateTime();
+        _previewTimer.Start();
+    }
+
+    private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_exitRequested || _trayIcon?.IsAvailable != true) return;
+        args.Cancel = true;
+        SaveSettings();
+        // Keep a failed save visible so it can be retried before leaving settings.
+        if (_dirty) return;
+        _previewTimer.Stop();
+        sender.Hide();
+    }
+
+    private void ExitApplication()
+    {
+        if (_closing) return;
+        SaveSettings();
+        if (_dirty) { ShowSettings(); return; }
+        _exitRequested = true;
+        Close();
+    }
+
+    private void ExitApplicationButton_Click(object sender, RoutedEventArgs e) => ExitApplication();
 
     private void PopulateControls()
     {
@@ -178,6 +237,7 @@ public sealed partial class MainWindow : Window
     private void WallpaperWindow_DesktopConnectionLost(object? sender, string message)
     {
         CloseWallpaper();
+        ShowSettings();
         StatusText.Text = message;
     }
 
@@ -215,6 +275,9 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _closing = true;
+        AppWindow.Closing -= AppWindow_Closing;
+        _trayIcon?.Dispose();
+        _trayIcon = null;
         _saveTimer.Stop();
         _previewTimer.Stop();
         _saveTimer.Tick -= SaveTimer_Tick;

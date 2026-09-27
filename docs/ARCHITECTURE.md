@@ -70,4 +70,6 @@ WorkerWWallpaperHostはWS_POPUPを外してWS_CHILDを設定し、SetParentの�
 
 ## 時計設定と永続化
 
+設定画面の×はAppWindow.Closingでキャンセルして非表示にする。アプリの再起動やトレイ操作はShowSettingsへ集約し、トレイを利用できない場合は×で通常終了する。明示的な終了は保存を確認してからWindow.Closeへ進み、Closedでリソースを破棄する。詳しくは [TRAY.md](TRAY.md) を参照。
+
 ClockSettingsは検証済みコピーとしてUIへ渡す。ClockViewは設定画面と壁紙の共通描画部品で、位置、文字色、サイズ、不透明度、時刻書式を受け取る。MainWindowは設定変更のたびに両方へ反映し、400msの待ち時間を置いてClockSettingsStoreへ保存する。通常終了時は保存待ちの変更を同期的に書き込む。形式とエラー処理は [CLOCK_SETTINGS.md](CLOCK_SETTINGS.md) に記載する。

@@ -1,5 +1,7 @@
 param([Parameter(Mandatory = $true)][string]$AppPath)
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 $appExecutable = (Resolve-Path -LiteralPath $AppPath).Path
 $appDirectory = Split-Path -Parent $appExecutable
 $processName = [IO.Path]::GetFileNameWithoutExtension($appExecutable)
@@ -22,8 +24,14 @@ function Wait-SingleWindow {
     throw 'Expected exactly one surviving process with a main window.'
 }
 function Close-TestApp($process) {
-    if (-not $process.CloseMainWindow()) { throw 'Could not request normal app shutdown.' }
-    if (-not $process.WaitForExit(15000)) { throw 'App did not exit after closing its main window.' }
+    $process.Refresh()
+    $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+    $condition = New-Object Windows.Automation.PropertyCondition ([Windows.Automation.AutomationElement]::AutomationIdProperty), 'ExitApplication'
+    $button = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($null -eq $button) { throw 'ExitApplication button not found.' }
+    $invoke = $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+    $invoke.Invoke()
+    if (-not $process.WaitForExit(15000)) { throw 'App did not exit after explicit Exit.' }
 }
 try {
     $primary = Start-TestApp
@@ -32,7 +40,20 @@ try {
     if (-not $secondary.WaitForExit(30000)) { throw 'Second launch did not redirect and exit.' }
     $primary.Refresh()
     if ($primary.HasExited -or $primary.MainWindowHandle -eq 0) { throw 'Primary window was lost.' }
-    Close-TestApp $primary
+    if (-not $primary.CloseMainWindow()) { throw 'Could not request close-to-tray.' }
+    Start-Sleep -Seconds 1
+    $primary.Refresh()
+    if ($primary.HasExited) {
+        # Hosted runners may not provide Explorer's notification area.
+        Write-Output 'INFO: notification area unavailable; closing exited normally (fallback). Tray UI requires an interactive desktop.'
+    } else {
+        if ($primary.MainWindowHandle -ne 0) { throw 'Close did not hide the settings window.' }
+        $reopen = Start-TestApp
+        if (-not $reopen.WaitForExit(30000)) { throw 'Reopen did not redirect and exit.' }
+        $null = Wait-SingleWindow
+        Close-TestApp $primary
+        Write-Output 'PASS: close-to-tray keeps process alive; relaunch restores settings; explicit Exit terminates'
+    }
     foreach ($process in $started) { $process.Dispose() }
     $started.Clear()
 
@@ -41,7 +62,7 @@ try {
     $null = Start-TestApp
     $survivor = Wait-SingleWindow
     Close-TestApp $survivor
-    Write-Output 'PASS: second launch redirects/exits; cold concurrent launches leave one window; normal close exits'
+    Write-Output 'PASS: second launch redirects/exits; cold concurrent launches leave one window; explicit Exit terminates'
 }
 finally {
     foreach ($process in $started) {

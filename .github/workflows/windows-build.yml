@@ -30,7 +30,7 @@ jobs:
       - name: Publish portable x64 app
         run: dotnet publish src/LiveWallpaper.App/LiveWallpaper.App.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true -o artifacts/LiveWallpaper-win-x64
       - name: Test published app single-instance startup
-        run: ./.github/scripts/test-single-instance.ps1 -AppPath ./artifacts/LiveWallpaper-win-x64/LiveWallpaper.App.exe
+        run: powershell -NoProfile -File ./.github/scripts/test-single-instance.ps1 -AppPath ./artifacts/LiveWallpaper-win-x64/LiveWallpaper.App.exe
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
