@@ -1,0 +1,10 @@
+<UserControl
+    x:Class="LiveWallpaper.App.Controls.WallpaperSurface"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:LiveWallpaper.App.Controls">
+    <Grid x:Name="BackgroundLayer" Background="#101014">
+        <Image x:Name="WallpaperImage" Stretch="UniformToFill" IsHitTestVisible="False" />
+        <controls:ClockView x:Name="Clock" IsHitTestVisible="False" />
+    </Grid>
+</UserControl>
