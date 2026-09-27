@@ -30,6 +30,9 @@ public static class StartupWindow {
 '@
 $appExecutable = (Resolve-Path -LiteralPath $AppPath).Path
 $appDirectory = Split-Path -Parent $appExecutable
+foreach ($resource in @('LiveWallpaper.App.pri', 'App.xbf', 'MainWindow.xbf', 'WallpaperWindow.xbf', 'Controls/ClockView.xbf', 'Controls/WallpaperSurface.xbf')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $appDirectory $resource))) { throw "Missing published XAML resource: $resource" }
+}
 $processName = [IO.Path]::GetFileNameWithoutExtension($appExecutable)
 if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
     throw 'An existing app instance is running; do not interfere with it.'

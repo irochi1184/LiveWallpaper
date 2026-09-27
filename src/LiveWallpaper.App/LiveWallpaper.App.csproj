@@ -29,4 +29,15 @@
         <ProjectReference Include="..\LiveWallpaper.Core\LiveWallpaper.Core.csproj" />
         <ProjectReference Include="..\LiveWallpaper.Windows\LiveWallpaper.Windows.csproj" />
     </ItemGroup>
+
+    <!-- Unpackaged dotnet publish omits the app PRI and loose compiled XAML.
+         Preserve their relative paths, including reusable controls in subfolders. -->
+    <Target Name="PublishWinUIResources" AfterTargets="Publish" Condition="'$(WindowsPackageType)' == 'None'">
+        <Error Condition="!Exists('$(TargetDir)$(AssemblyName).pri')" Text="The application resource index was not generated." />
+        <ItemGroup>
+            <_PublishXbf Include="$(TargetDir)**\*.xbf" />
+        </ItemGroup>
+        <Copy SourceFiles="$(TargetDir)$(AssemblyName).pri" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_PublishXbf)" DestinationFiles="@(_PublishXbf->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    </Target>
 </Project>
